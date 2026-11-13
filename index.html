@@ -122,7 +122,17 @@ const seed = () => ({
 
 function load(){ try { const s = JSON.parse(localStorage.getItem(KEY)); if (valid(s)) return s; } catch {} return seed(); }
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} render(); }
-function valid(s){ return s && Array.isArray(s.projects) && Array.isArray(s.tasks); }
+// imported files and localStorage are untrusted: ids/colors/dates go into HTML attributes unescaped
+const ID = /^[\w-]+$/, isStr = v => typeof v === 'string';
+function valid(s){
+  return !!s && Array.isArray(s.projects) && Array.isArray(s.tasks) && isStr(s.filter) && (s.filter === 'all' || ID.test(s.filter))
+    && s.projects.length > 0 && s.projects.every(p => ID.test(p.id) && /^#[0-9a-f]{3,8}$/i.test(p.color)
+      && [p.name, p.kind, p.venue, p.notes].every(isStr) && (p.overleaf === '' || /^https:\/\//i.test(p.overleaf))
+      && Array.isArray(p.deadlines) && p.deadlines.length > 0 && p.deadlines.every(d => isStr(d.label) && /^\d{4}-\d{2}-\d{2}$/.test(d.date)))
+    && s.tasks.every(t => ID.test(t.id) && isStr(t.title) && COLS.some(([k]) => k === t.status) && s.projects.some(p => p.id === t.project));
+}
+console.assert(valid(seed()), 'seed passes validation');
+console.assert(!valid({...seed(), projects: [{...seed().projects[0], overleaf: 'javascript:alert(1)'}]}), 'rejects javascript: link');
 let S = load();
 
 const midnight = d => { d = new Date(d); d.setHours(0,0,0,0); return d; };
